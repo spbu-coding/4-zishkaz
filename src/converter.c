@@ -13,41 +13,41 @@
 
 struct metadata_t {
 
-    unsigned int file_size;
-    unsigned int pixelar_offset;
-    unsigned int bitmap_width;
-    int bitmap_height;
+    unsigned long file_size;
+    unsigned long pixelar_offset;
+    unsigned long bitmap_width;
+    long bitmap_height;
     unsigned char bits_per_pixel;
-    unsigned int image_size;
+    unsigned long image_size;
     unsigned char bitmap_header_remains[16];
 };
 
-unsigned short read_USHORT(unsigned char *buf, unsigned int *offset) {
+unsigned short read_USHORT(unsigned char *buf, unsigned long *offset) {
 
     *offset += 2;
     return buf[*offset - 1] << 8 | buf[*offset - 2];
 }
 
-unsigned int read_UINT(unsigned char *buf, unsigned int *offset) {
+unsigned long read_UINT(unsigned char *buf, unsigned long *offset) {
 
     *offset +=4;
     return buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
 }
 
-int read_INT(unsigned char *buf, unsigned int *offset) {
+long read_INT(unsigned char *buf, unsigned long *offset) {
 
     *offset +=4;
-    if (buf[*offset - 1] > 47) {
+    if (buf[*offset - 1] > 15) {
 
-        int x = buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
+        long x = buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
         x--;
         return -~x;
     } else return buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
 }
 
-void write_INT(unsigned char *buf, unsigned int *offset, int x) {
+void write_INT(unsigned char *buf, unsigned long *offset, long x) {
 
-    unsigned int y;
+    unsigned long y;
     if (x < 0) y = ~abs(x) + 1; else y = x;
     buf[*offset] = (y & 0x000000ff);
     buf[*offset + 1] = (y & 0x0000ff00) >> 8;
@@ -56,14 +56,14 @@ void write_INT(unsigned char *buf, unsigned int *offset, int x) {
     *offset += 4;
 }
 
-void write_USHORT(unsigned char *buf, unsigned int *offset, unsigned short x) {
+void write_USHORT(unsigned char *buf, unsigned long *offset, unsigned short x) {
 
     buf[*offset] = (x & 0x000000ff);
     buf[*offset + 1] = (x & 0x0000ff00) >> 8;
     *offset += 2;
 }
 
-void write_UINT(unsigned char *buf, unsigned int *offset, unsigned int x) {
+void write_UINT(unsigned char *buf, unsigned long *offset, unsigned int x) {
 
     buf[*offset] = (x & 0x000000ff);
     buf[*offset + 1] = (x & 0x0000ff00) >> 8;
@@ -75,7 +75,7 @@ void write_UINT(unsigned char *buf, unsigned int *offset, unsigned int x) {
 void write_metadata(struct metadata_t *data, FILE *file) {
 
     unsigned char *buf = malloc(HEADERS_OFFSET - 16);
-    unsigned int offset = 0;
+    unsigned long offset = 0;
     write_USHORT(buf, &offset, 0x4D42);
     write_UINT(buf, &offset, data->file_size);
     write_UINT(buf, &offset, 0x0);
@@ -109,7 +109,7 @@ int bit8_handler(FILE *input, FILE *output, struct metadata_t *data) {
         fwrite(byte4, 4, 1, output);
     }
     unsigned char byte[1];
-    for(int i = 0; i < data->image_size; i++) {
+    for(unsigned long i = 0; i < data->image_size; i++) {
 
         fread(byte, 1, 1, input);
         fwrite(byte, 1, 1, output);
@@ -119,11 +119,11 @@ int bit8_handler(FILE *input, FILE *output, struct metadata_t *data) {
 
 void bit24_handler(FILE *input, FILE *output, struct metadata_t *data) {
 
-    unsigned int row_size = (data->bits_per_pixel * data->bitmap_width + 31) / 32 * 4;
-    printf("%s %d\n", "Row size:", row_size);
-    unsigned int count;
+    unsigned long row_size = (data->bits_per_pixel * data->bitmap_width + 31) / 32 * 4;
+    printf("%s %ld\n", "Row size:", row_size);
+    unsigned long count;
     unsigned char byte3[3];
-    for(int i = 0; i < abs(data->bitmap_height); i++) {
+    for(unsigned long i = 0; i < abs(data->bitmap_height); i++) {
 
         count = row_size;
         while(count > 2) {
@@ -154,7 +154,7 @@ int mine_handler(char **argv) {
     struct metadata_t data;
 
     unsigned char *buf = malloc(HEADERS_OFFSET - 16);
-    unsigned int offset_counter = 0;
+    unsigned long offset_counter = 0;
     fread(buf, HEADERS_OFFSET - 16, 1, input);
     unsigned short file_type = read_USHORT(buf, &offset_counter);
     if (file_type != 0x4D42) {
@@ -165,7 +165,7 @@ int mine_handler(char **argv) {
     printf("%s %hX\n", "File type:", file_type);
 
     data.file_size = read_UINT(buf, &offset_counter);
-    printf("%s %d\n", "File size:", data.file_size);
+    printf("%s %ld\n", "File size:", data.file_size);
 
     if (read_UINT(buf, &offset_counter) != 0) {
 
@@ -179,7 +179,7 @@ int mine_handler(char **argv) {
         fprintf(stderr, "Invalid offset of bitmap image data!");
         return FILE_STRUCTURE_ERROR_CODE;
     }
-    printf("%s %X\n", "Pixel array offset:", data.pixelar_offset);
+    printf("%s %lX\n", "Pixel array offset:", data.pixelar_offset);
 
     unsigned int temp = read_UINT(buf, &offset_counter);
     if (temp != INFO_HEADER_SIZE) {
@@ -190,10 +190,10 @@ int mine_handler(char **argv) {
     printf("%s %d\n", "Size of header:", temp);
 
     data.bitmap_width = read_UINT(buf, &offset_counter);
-    printf("%s %d\n", "Image width:", data.bitmap_width);
+    printf("%s %ld\n", "Image width:", data.bitmap_width);
 
     data.bitmap_height = read_INT(buf, &offset_counter);
-    printf("%s %d\n", "Image height:", data.bitmap_height);
+    printf("%s %ld\n", "Image height:", data.bitmap_height);
 
     if (read_USHORT(buf, &offset_counter) != 1) {
 
@@ -225,7 +225,7 @@ int mine_handler(char **argv) {
         fprintf(stderr, "Invalid image size!");
         return FILE_STRUCTURE_ERROR_CODE;
     }
-    printf("%s %d\n", "Image size:", data.image_size);
+    printf("%s %ld\n", "Image size:", data.image_size);
     free(buf);
 
     fread(data.bitmap_header_remains, 16, 1, input);
