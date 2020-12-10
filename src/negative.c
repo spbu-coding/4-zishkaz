@@ -7,7 +7,7 @@
 
 #include "qdbmp.h"
 #include <stdio.h>
-
+#include "negative.h"
 /* Creates a negative image of the input bitmap file */
 int convert(char *input, char *output)
 {
