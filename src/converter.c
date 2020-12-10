@@ -3,47 +3,13 @@
 #include <string.h>
 #include "qdbmp.h"
 #include "negative.h"
+#include "task4.h"
 
 #define HEADERS_OFFSET 54
 #define LIBRARY_ERROR_CODE -3
 #define COMMON_ERROR_CODE -1
 #define FILE_STRUCTURE_ERROR_CODE -2
 #define INFO_HEADER_SIZE 40
-//Улучшить сообщения об ошибках
-
-struct metadata_t {
-
-    unsigned long file_size;
-    unsigned long pixelar_offset;
-    unsigned long bitmap_width;
-    long bitmap_height;
-    unsigned char bits_per_pixel;
-    unsigned long image_size;
-    unsigned char bitmap_header_remains[16];
-};
-
-unsigned short read_USHORT(unsigned char *buf, unsigned long *offset) {
-
-    *offset += 2;
-    return buf[*offset - 1] << 8 | buf[*offset - 2];
-}
-
-unsigned long read_UINT(unsigned char *buf, unsigned long *offset) {
-
-    *offset +=4;
-    return buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
-}
-
-long read_INT(unsigned char *buf, unsigned long *offset) {
-
-    *offset +=4;
-    if (buf[*offset - 1] > 15) {
-
-        long x = buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
-        x--;
-        return -~x;
-    } else return buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
-}
 
 void write_INT(unsigned char *buf, unsigned long *offset, long x) {
 

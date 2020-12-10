@@ -1,19 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "task4.h"
 
 #define HEADERS_OFFSET 54
 #define MAX_UNEQUAL_COORDINATES 100
-
-struct metadata_t {
-
-    unsigned long file_size;
-    unsigned long pixelar_offset;
-    unsigned long bitmap_width;
-    long bitmap_height;
-    unsigned char bits_per_pixel;
-    unsigned long image_size;
-    unsigned char bitmap_header_remains[16];
-};
 
 struct BMP {
 
@@ -26,27 +16,42 @@ unsigned long hash(unsigned char r, unsigned char g, unsigned char b) {
     return r + 256*g + 65280*b;
 }
 
-int read_INT(const unsigned char *buf, unsigned long *offset) {
+void bit8_handler(struct BMP *bmp, struct metadata_t *meta, FILE *file) {
 
-    *offset +=4;
-    if (buf[*offset - 1] > 15) {
+    unsigned char *buf = malloc(1024);
+    fread(buf, 1024, 1, file);
+    for (unsigned int i = 4; i < 1025; i += 4) {
 
-        long x = buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
-        x--;
-        return -~x;
-    } else return buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
+        bmp->palette[i / 4 - 1] = hash(buf[i - 2], buf[i - 3], buf[i - 4]);
+    }
+    free(buf);
+    buf = malloc(meta->image_size);
+    fread(buf, meta->image_size, 1, file);
+    bmp->pixel_array = malloc(meta->image_size * sizeof(long));
+    for (unsigned long i = 0; i < meta->image_size; i++) {
+
+        bmp->pixel_array[i] = bmp->palette[buf[i]];
+    }
+    free(buf);
 }
 
-unsigned short read_USHORT(const unsigned char *buf, unsigned long *offset) {
+void bit24_handler(struct BMP *bmp, struct metadata_t *meta, FILE *file) {
 
-    *offset += 2;
-    return buf[*offset - 1] << 8 | buf[*offset - 2];
-}
+    unsigned long row_size = (meta->bits_per_pixel * meta->bitmap_width + 31) / 32 * 4;
+    bmp->pixel_array = malloc(abs(meta->bitmap_height) * meta->bitmap_width * sizeof(long));
+    unsigned char *buf = malloc(meta->image_size);
+    fread(buf, meta->image_size, 1, file);
+    unsigned long counter = 0, global_i = 0;
+    for (unsigned long j = 0; j < abs(meta->bitmap_height); j++) {
 
-unsigned int read_UINT(const unsigned char *buf, unsigned long *offset) {
+        for (unsigned long i = 0; i < meta->bitmap_width; i++) {
 
-    *offset +=4;
-    return buf[*offset - 1] << 24 | buf[*offset - 2] << 16 | buf[*offset - 3] << 8 | buf[*offset - 4];
+            bmp->pixel_array[counter] = hash(buf[global_i + i*3 + 2], buf[global_i + i*3 + 1], buf[global_i + i*3]);
+            counter++;
+        }
+        global_i += row_size;
+    }
+    free(buf);
 }
 
 int main(int argc, char **argv) {
@@ -135,76 +140,10 @@ int main(int argc, char **argv) {
     fread(meta_second.bitmap_header_remains, 16, 1, second);
     free(buf_first); free(buf_second);
     struct BMP first_bmp, second_bmp;
-    if (meta_first.bits_per_pixel == 8) {
-
-        unsigned char *buf = malloc(1024);
-        fread(buf, 1024, 1, first);
-        for (unsigned int i = 4; i < 1025; i += 4) {
-
-            first_bmp.palette[i / 4 - 1] = hash(buf[i - 2], buf[i - 3], buf[i - 4]);
-        }
-        free(buf);
-        buf = malloc(meta_first.image_size);
-        fread(buf, meta_first.image_size, 1, first);
-        first_bmp.pixel_array = malloc(meta_first.image_size * sizeof(long));
-        for (unsigned long i = 0; i < meta_first.image_size; i++) {
-
-            first_bmp.pixel_array[i] = first_bmp.palette[buf[i]];
-        }
-        free(buf);
-    } else {
-
-        unsigned long row_size = (meta_first.bits_per_pixel * meta_first.bitmap_width + 31) / 32 * 4;
-        first_bmp.pixel_array = malloc(abs(meta_first.bitmap_height) * meta_first.bitmap_width * sizeof(long));
-        unsigned char *buf = malloc(meta_first.image_size);
-        fread(buf, meta_first.image_size, 1, first);
-        unsigned long counter = 0, global_i = 0;
-        for (unsigned long j = 0; j < abs(meta_first.bitmap_height); j++) {
-
-            for (unsigned long i = 0; i < meta_first.bitmap_width; i++) {
-
-                first_bmp.pixel_array[counter] = hash(buf[global_i + i*3 + 2], buf[global_i + i*3 + 1], buf[global_i + i*3]);
-                counter++;
-            }
-            global_i += row_size;
-        }
-        free(buf);
-    }
-    if (meta_second.bits_per_pixel == 8) {
-
-        unsigned char *buf = malloc(1024);
-        fread(buf, 1024, 1, second);
-        for (unsigned int i = 4; i < 1025; i += 4) {
-
-            second_bmp.palette[i / 4 - 1] = hash(buf[i - 2], buf[i - 3], buf[i - 4]);
-        }
-        free(buf);
-        buf = malloc(meta_second.image_size);
-        fread(buf, meta_second.image_size, 1, second);
-        second_bmp.pixel_array = malloc(meta_second.image_size * sizeof(long));
-        for (unsigned long i = 0; i < meta_second.image_size; i++) {
-
-            second_bmp.pixel_array[i] = second_bmp.palette[buf[i]];
-        }
-        free(buf);
-    } else {
-
-        unsigned long row_size = (meta_second.bits_per_pixel * meta_second.bitmap_width + 31) / 32 * 4;
-        second_bmp.pixel_array = malloc(row_size * abs(meta_second.bitmap_height) * sizeof(long));
-        unsigned char *buf = malloc(meta_second.image_size);
-        fread(buf, meta_second.image_size, 1, second);
-        unsigned long counter = 0, global_i = 0;
-        for (unsigned long j = 0; j < abs(meta_second.bitmap_height); j++) {
-
-            for (unsigned long i = 0; i < meta_second.bitmap_width; i++) {
-
-                second_bmp.pixel_array[counter] = hash(buf[global_i + i*3 + 2], buf[global_i + i*3 + 1], buf[global_i + i*3]);
-                counter++;
-            }
-            global_i += row_size;
-        }
-        free(buf);
-    }
+    if (meta_first.bits_per_pixel == 8) bit8_handler(&first_bmp, &meta_first, first);
+    else bit24_handler(&first_bmp, &meta_first, first);
+    if (meta_second.bits_per_pixel == 8) bit8_handler(&second_bmp, &meta_second, second);
+    else bit24_handler(&second_bmp, &meta_second, second);
     unsigned char error = 0;
     unsigned long all_pixels = abs(meta_first.bitmap_height) * meta_first.bitmap_width;
     for (unsigned long y = 0; y < abs(meta_first.bitmap_height); y++) {
